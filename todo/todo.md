@@ -11,7 +11,7 @@
 5. Combinaison des effets?
 6. Ouverture
 
-![](IMG_9354.HEIC)
+![](IMG_9354.HEIC "Réunion du 2024-03-05")
 
 ## Tâches
 
