@@ -11,6 +11,7 @@
 5. Combinaison des effets?
 6. Ouverture
 
+![IMG_9354.HEIC]
 
 ## Tâches
 
