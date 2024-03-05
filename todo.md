@@ -1,4 +1,4 @@
-# Plan de la lettre de présentation à Maxime
+## Plan de la lettre de présentation à Maxime
 
 1. Rappel de Pang/intro
 2. Résultats numériques
