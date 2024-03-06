@@ -1,6 +1,28 @@
 import numpy as np
 
 
+def within_distance_interval(target1, source1, target2, source2, distance_matrix, min_distance, max_distance):
+    if distance_matrix != None:
+        if min_distance != None:
+            if distance_matrix[target1, source1] < min_distance:
+                return False
+            if distance_matrix[target2, source2] < min_distance:
+                return False
+            if distance_matrix[target1, source2] < min_distance:
+                return False
+            if distance_matrix[target2, source1] < min_distance:
+                return False
+        if max_distance != None:
+            if distance_matrix[target1, source1] > max_distance:
+                return False
+            if distance_matrix[target2, source2] > max_distance:
+                return False
+            if distance_matrix[target1, source2] > max_distance:
+                return False
+            if distance_matrix[target2, source1] > max_distance:
+                return False
+    return True
+
 
 def double_edge_swap(adjacency_matrix, number_of_iterations=None, preserve_out_strength=False, distance_matrix=None, min_distance=None, max_distance=None):
 
@@ -88,26 +110,3 @@ def double_edge_swap(adjacency_matrix, number_of_iterations=None, preserve_out_s
         edgelist[e2, 0], edgelist[e2, 1] = target2, source1
     
     return adjacency_matrix
-
-
-def within_distance_interval(target1, source1, target2, source2, distance_matrix, min_distance, max_distance):
-    if distance_matrix != None:
-        if min_distance != None:
-            if distance_matrix[target1, source1] < min_distance:
-                return False
-            if distance_matrix[target2, source2] < min_distance:
-                return False
-            if distance_matrix[target1, source2] < min_distance:
-                return False
-            if distance_matrix[target2, source1] < min_distance:
-                return False
-        if max_distance != None:
-            if distance_matrix[target1, source1] > max_distance:
-                return False
-            if distance_matrix[target2, source2] > max_distance:
-                return False
-            if distance_matrix[target1, source2] > max_distance:
-                return False
-            if distance_matrix[target2, source1] > max_distance:
-                return False
-    return True
