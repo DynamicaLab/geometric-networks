@@ -1,5 +1,56 @@
-import numpy as np
 import copy
+import numpy as np
+import pandas as pd
+
+
+def save_graph_to_file(adjacency_matrix: np.ndarray, filename: str, distance_matrix: np.ndarray = None) -> None:
+    """
+    Saves the graph represented by the adjacency matrix to a file in CSV format.
+
+    Args:
+    - adjacency_matrix (np.ndarray): The adjacency matrix representing the graph.
+    - filename (str): The name of the file to save the graph to.
+    - distance_matrix (np.ndarray, optional): The distance matrix representing the distances between nodes. Defaults to None.
+
+    Returns:
+        None
+    """
+    # Checks if the graph is undirected
+    if np.allclose(adjacency_matrix, adjacency_matrix.T):
+        undirected = True
+    else:
+        undirected = False
+
+    # Checks if the graph is unweighted
+    if np.array_equal(adjacency_matrix, adjacency_matrix.astype(bool)):
+        weighted = False
+    else:
+        weighted = True
+    
+    # Extracts the edgelist
+    if undirected:
+        edgelist = np.argwhere(np.triu(adjacency_matrix))
+    else:
+        edgelist = np.argwhere(adjacency_matrix)
+
+    header = ["source", "target"]
+    df = {}
+    df["source"] = edgelist[:, 0]
+    df["target"] = edgelist[:, 1]
+
+    # Appends the weights, if any
+    if weighted:
+        header.append("weight")
+        edgelist = np.c_[edgelist, adjacency_matrix[edgelist[:, 0], edgelist[:, 1]]]
+
+    # Appends the distances, if any
+    if distance_matrix is not None:
+        header.append("distance")
+        edgelist = np.c_[edgelist, distance_matrix[edgelist[:, 0], edgelist[:, 1]]]
+
+    # Saves the edgelist as a csv text file
+    df = pd.DataFrame(edgelist, columns=header)
+    df.to_csv(filename, index=False)
 
 
 def within_distance_interval(target1: int, source1: int, target2: int, source2: int, distance_matrix: np.ndarray, min_distance: float = None, max_distance: float = None) -> bool:
@@ -39,7 +90,7 @@ def within_distance_interval(target1: int, source1: int, target2: int, source2: 
     return True
 
 
-def double_edge_swap(adjacency_matrix: np.ndarray, weights: str = None, number_of_iterations: int = None, distance_matrix: np.ndarray = None, min_distance: float = None, max_distance: float = None) -> np.ndarray:
+def double_edge_swap(adjacency_matrix: np.ndarray, weights: str = None, number_of_iterations: int = None, distance_matrix: np.ndarray = np.zeros((1,1)), min_distance: float = None, max_distance: float = None) -> np.ndarray:
     """
     Performs the double-edge swap algorithm on a given adjacency matrix.
 
@@ -106,7 +157,7 @@ def double_edge_swap(adjacency_matrix: np.ndarray, weights: str = None, number_o
                 source2, target2 = target2, source2
 
         # Check that the old and new edges are within a prescribed distance interval
-        if distance_matrix != None:
+        if not np.allclose(distance_matrix, np.zeros((1,1))):
             if not within_distance_interval(target1, source1, target2, source2, distance_matrix, min_distance, max_distance):
                 continue
 
