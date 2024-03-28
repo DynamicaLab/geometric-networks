@@ -65,24 +65,27 @@ Lorem ipsum lorem ipsum. Lorem ipsum lorem ipsum. Lorem ipsum lorem ipsum. Lorem
 
 \section*{Introduction}
 
+Neural field theory (NFT).
+
 \section*{Results}
 
-\subsection*{Functional and geometric correspondence emerges in locally connected neural networks}
+\section*{Functional gradients coincide with geometric modes in }
 
-\subsection*{Long-distance connections constrain geometric mode wavelengths}
+A principal assumption made by NFT is the exponential decay of connection weights with distance, a known feature of cortical connectivity which could form the structural basis for waves propagating through neural tissue. Similarly, the recent observation of geometric modes could be a direct consequence of strong local connectivity, where the cortical sheet would act as a dense, effectively continuous medium for wave propagation through the action of a Laplace-Beltrami operator. In both cases, short-range connections are the main drivers. Although long-range connections are present in the brain, their rarity and proportionally smaller effect on brain dynamics could in principle be greatly overshadowed by local connectivity. In Pang \textit{et al.}, a key result is the strong correspondence of functional gradients - spatially continuous measures of functional connectivity - with geometric modes derived from the shape of subcortical structures. Here, we demonstrate numerically that geometric functional gradients do emerge in arbitrary 3D shapes wherein locally connected neural networks are embedded with simple firing rate dynamics. We then investigate in the following section how this function-geometry correspondence breaks down when local connectivity is perturbed.
 
-\subsection*{The emergence of geometric modes is independent of volume shape or dynamics}
+We begin by embedding $N=2000$ network nodes (e.g. neurons) uniformly in a $3D$ ellipsoid of major axis length $1$ and minor axis length $0.5$. Then, we connect neurons whose distance $d_{ij}$ is smaller than a certain radius $h$, which we set as $h=0.1$ for the present analysis. Edge weights are then drawn randomly from a certain distribution (which I need to describe here), with positive and negative weights representing excitatory and inhibitory synapses, respectively. Firing rate dynamics are then simulated with the following equation
 
-\subsection*{Geometric modes in physical networks}
+$$\tau\frac{d\textbf{x}}{dt}=-\textbf{x} + g\textbf{W}\textbf{r},$$
 
-\subsection*{Analytic results and stuff}
+where
 
-\begin{figure*}[t!]
-    \centering
-%    \includegraphics[width=0.95\textwidth]{Figures/figure1.png}
-    \caption{}
-    \label{fig1}
-\end{figure*}
+$$\textbf{r}=\tanh{(\textbf{x})}.$$
+
+$\textbf{x}(t)$ describes an internal variable for each neuron, analogous to a membrane potential, while $\textbf{r}(t)$ is the firing rate obtained through a nonlinearity $\tanh (\textbf{x})$. The parameter $\tau$ dictates the time constant of neurons, and $g$ is the coupling strength, which brings the network into a chaotic regime for $\tau>1$ (in the very large and dense limit) (cite).
+
+
+
+
 
 \section*{Discussion}
 
