@@ -206,20 +206,28 @@ def double_edge_swap(adjacency_matrix: np.ndarray, weights: str = None, number_o
 
 if __name__ == "__main__":
 
-    import networkx as nx
-
     number_of_vertices = 100
     average_degree = 2
-    number_of_edges = average_degree * number_of_vertices / 2
-    A_undirected_unweighted = nx.to_numpy_array(nx.gnm_random_graph(number_of_vertices, number_of_edges, directed=False))
-    A_directed_unweighted = nx.to_numpy_array(nx.gnm_random_graph(number_of_vertices, number_of_edges, directed=True))
+    number_of_edges = int(average_degree * number_of_vertices / 2)
+
+    indices = np.random.choice(int(number_of_vertices * (number_of_vertices - 1) / 2), number_of_edges, replace=False)
+    indices = np.array(np.triu_indices(number_of_vertices, 1)).reshape(2, -1).T[indices]
+    A_undirected_unweighted = np.zeros((number_of_vertices, number_of_vertices))
+    A_undirected_unweighted[indices[:, 0], indices[:, 1]] = 1
+    A_undirected_unweighted = A_undirected_unweighted + A_undirected_unweighted.T - np.diag(np.diag(A_undirected_unweighted))
+
+    indices = np.random.choice(int(number_of_vertices * (number_of_vertices - 1)), number_of_edges, replace=False)
+    indices = np.vstack((np.array(np.triu_indices(number_of_vertices, 1)).reshape(2, -1).T, np.array(np.tril_indices(number_of_vertices, -1)).reshape(2, -1).T))[indices]
+    A_directed_unweighted = np.zeros((number_of_vertices, number_of_vertices))
+    A_directed_unweighted[indices[:, 0], indices[:, 1]] = 1
 
     average_weight = 5
     variance_weight = 2
     theta = variance_weight / average_weight
     k = average_weight / theta
     A_undirected_weighted = np.multiply(A_undirected_unweighted, np.random.gamma(shape=k, scale=theta, size=(number_of_vertices, number_of_vertices)))
-    A_undirected_weighted = (A_undirected_weighted + A_undirected_weighted.T) / 2
+    A_undirected_weighted = np.triu(A_undirected_weighted)
+    A_undirected_weighted = A_undirected_weighted + A_undirected_weighted.T - np.diag(np.diag(A_undirected_weighted))
     A_directed_weighted = np.multiply(A_directed_unweighted, np.random.gamma(shape=k, scale=theta, size=(number_of_vertices, number_of_vertices)))
 
     A_undirected_unweighted_shuffled = double_edge_swap(A_undirected_unweighted)
