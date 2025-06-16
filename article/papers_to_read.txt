@@ -1,0 +1,30 @@
+%%%%%%%%%%%%%%%%%%%%
+1. Propagating patterns of intrinsic activity along macroscale gradients coordinate functional connections across the whole brain
+https://www.sciencedirect.com/science/article/pii/S105381192100104X
+
+Notes: waves propagate along macroscale cortical gradients, as (qualitatively) observed using quasi-periodic patterns (QPPs)
+%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%
+2. Human brain networks function in connectome-specific harmonic waves 
+https://www.nature.com/articles/ncomms10340
+
+Notes: graph laplacian yields eigenmodes that look like RSNs
+%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%
+3. Transient neuronal coactivations embedded in globally
+propagating waves underlie resting-state functional connectivity
+https://www-pnas-org.acces.bibl.ulaval.ca/doi/abs/10.1073/pnas.1521299113
+
+Notes: Mouse widefield imaging; calcium waves explain a fraction of hemodynamic FC.
+%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%
+4. Time-Delayed Spatial Patterns in a Two-Dimensional Array of Coupled Oscillators
+https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.89.154104
+
+Notes: Time delays can serve as a generative mechanism for traveling waves.
+%%%%%%%%%%%%%%%%%%%%
+
+NOTE: See recent Deco paper for good ref on EDR connectivity references
