@@ -1,6 +1,6 @@
-![Image](github_cover.jpg)
-
 # Function aligns with geometry in locally connected networks
+
+![Image](github_cover.jpg)
 
 This repository contains the code and notebooks used in the manuscript:
 
