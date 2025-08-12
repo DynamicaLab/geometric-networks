@@ -21,7 +21,7 @@ Clone the repository, then run the notebooks in a Python environment equipped wi
 
 If you use this repository for your own work, please cite the paper:
 
-> Antoine Légaré, Antoine Allard, Olivier Ribordy, Paul De Koninck, Patrick Desrosiers (2025). *Function aligns with geometry in locally connected neuronal networks.* [DOI](https://www.biorxiv.org/)
+> Antoine Légaré, Antoine Allard, Olivier Ribordy, Paul De Koninck, Patrick Desrosiers (2025). *Function aligns with geometry in locally connected neuronal networks.* [DOI: 10.1101/2025.08.08.669348](https://doi.org/10.1101/2025.08.08.669348)
 
 BibTeX:
 ```bibtex
@@ -30,11 +30,11 @@ BibTeX:
   author = {L{\'e}gar{\'e}, Antoine and Ribordy, Olivier and De Koninck, Paul and Allard, Antoine and Desrosiers, Patrick},
   journal = {bioRxiv},
   year = {2025},
-  doi = {10.1101/XXXXXXX}
+  doi = {10.1101/2025.08.08.669348}
 }
 ```
 
-# Authors
+## Authors
 
 - Antoine Légaré (antoine.legare.1@ulaval.ca)
 
