@@ -1,4 +1,4 @@
-# Function aligns with geometry in locally connected networks
+# Function aligns with geometry in locally connected neuronal networks
 
 ![Image](github_cover.jpg)
 
