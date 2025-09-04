@@ -537,6 +537,10 @@ class RNN(nn.Module):
 # ----------------------------------------------------------------------------------------------------------------------
 
 
+def double(vector):
+    return np.concatenate([vector, vector])
+
+
 def normalize(array):
     normalized = np.copy(array)
     normalized = normalized - np.min(normalized)
