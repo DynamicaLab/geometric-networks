@@ -4,7 +4,6 @@ import h5py
 import nrrd
 import numpy as np
 from tqdm import tqdm
-from skimage.io import imread
 from tifffile import imwrite, imread
 from scipy.ndimage import gaussian_filter
 from scipy.ndimage import distance_transform_edt

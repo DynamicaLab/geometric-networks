@@ -11,6 +11,7 @@ from scipy.stats import pearsonr
 from scipy.stats import f_oneway
 from scipy.spatial import cKDTree
 from scipy.signal import find_peaks
+from scipy.optimize import curve_fit
 from scipy.spatial.distance import cdist
 from matplotlib.animation import FuncAnimation
 from scipy.optimize import linear_sum_assignment
@@ -65,20 +66,18 @@ class Simulator:
             self.coordinates -= np.mean(self.coordinates, axis=0)
         self.dynamics = self.dynamics_class(self.coordinates, self.dynamics_params, device=self.device)
         if W_0 is not None: # For edge swapping, allows the introduction of an externally generated W matrix
-            W = self.dynamics.W.detach().cpu().numpy()
-            weights = W[W != 0]
-            W_0[W_0 != 0] = weights[:np.sum(W_0 != 0)]
-            self.dynamics.W = torch.tensor(W_0).float().to(self.device)
+            W = resample_weights(W_0)
+            self.dynamics.W = torch.tensor(W).float().to(self.device)
 
     def compute_average_correlations(self, n_iters=100, T=500, verbose=True, calcium=False, tau_calcium=10,
-                                     smoothing=False, sigma=0.05, W_0=None):
+                                     smoothing=False, sigma=0.05, W_0=None, cutoff=0):
         N = self.dynamics.coordinates.shape[0]
         C = np.zeros((N, N))
         for i in progress_bar(range(n_iters), verbose=verbose):
             self.reinitialize_dynamics(new_coordinates=False, W_0=W_0)
-            R = self.dynamics.integrate(T)
+            R = self.dynamics.integrate(T)[:, cutoff:]
             if calcium:
-                R = gcampify(R, tau=tau_calcium)
+                R = gcampify(numpify(R), tau=tau_calcium)
             if smoothing:
                 R = spatial_smoothing(self.torch_to_numpy(R), self.coordinates, sigma=sigma)
             if type(R) == torch.Tensor:
@@ -102,16 +101,29 @@ class Simulator:
         else:
             return mode_similarity, mapping
 
+    def compute_geometric_mapping_new(self, C, N_modes=50, alpha=0.5, return_gradients=False):
+        C[np.diag_indices(C.shape[0])] = 0
+        _, modes_functional = diffusion_maps(C, alpha=alpha)
+        modes_functional = modes_functional[1:]
+        modes_geometric = self.geometry.subsample_eigenmodes()
+        modes_geometric = modes_geometric[1:N_modes + 1, :]
+        mode_similarity, mapping = compute_mode_similarity_matrix(modes_geometric, modes_functional, return_mapping=True)
+        if return_gradients:
+            return mode_similarity, mapping, modes_functional
+        else:
+            return mode_similarity, mapping
+
     def compute_correlation_curve(self, C, d_max=0.5, n_bins=21):
         distances = compute_distances(self.coordinates, self.coordinates)
         bins = np.linspace(0, d_max, n_bins, endpoint=True)
+        d_values = bins[:-1] + ((bins[1] - bins[0]) / 2)
         avg_corr_per_dist = []
         std_corr_per_dist = []
         for i in range(len(bins) - 1):
             corrs_in_bin = C[(distances > bins[i]) & (distances <= bins[i + 1])]
             avg_corr_per_dist.append(np.mean(corrs_in_bin))
             std_corr_per_dist.append(np.std(corrs_in_bin))
-        return avg_corr_per_dist, std_corr_per_dist
+        return d_values, avg_corr_per_dist, std_corr_per_dist
 
     def compute_structure_function_coupling(self, C):
         triangle = np.triu_indices(C.shape[0], 1)
@@ -144,7 +156,7 @@ class Simulator:
         plt.axis('off')
         plt.show()
 
-    def animate(self, cmap='hot', vmin=None, vmax=None, fps=50, s=50, alpha=0.5, lim=1, rotation_speed=0.5, elev=30):
+    def animate(self, cmap='hot', vmin=None, vmax=None, fps=50, s=50, alpha=0.5, lim=1, rotation_speed=0.5, elev=30, cutoff=0):
         coords = self.coordinates
         if self.timeseries is None:
             self.integrate(output=False)
@@ -156,7 +168,7 @@ class Simulator:
         ax = fig.add_subplot(111, projection='3d')
         delta = lim / 2
         sc = ax.scatter(coords[:, 0] + delta, coords[:, 1] + delta, coords[:, 2] + delta,
-                        c=self.timeseries[:, 0],
+                        c=self.timeseries[:, cutoff + 0],
                         cmap=cmap,
                         vmin=vmin,
                         vmax=vmax,
@@ -169,12 +181,12 @@ class Simulator:
         ax.axis('off')
 
         def update(frame):
-            sc.set_array(self.timeseries[:, frame])  # Update colors based on activity
+            sc.set_array(self.timeseries[:, cutoff + frame])  # Update colors based on activity
             # ax.set_title(f"Time Step: {frame}")
             ax.view_init(elev=elev, azim=frame * rotation_speed)  # Adjust rotation speed with the multiplier
             return sc,
 
-        self.animation = FuncAnimation(fig, update, frames=self.timeseries.shape[1], interval=1000 / fps, blit=False)
+        self.animation = FuncAnimation(fig, update, frames=self.timeseries.shape[1] - cutoff, interval=1000 / fps, blit=False)
         plt.show()
 
     def save_animation(self, path, fps=50):
@@ -205,10 +217,14 @@ class ChaoticRNN:
         N = self.coordinates.shape[0]
         self.tau = torch.tensor(params['tau']).float().to(device)
         self.g = torch.tensor(params['g']).float().to(device)
-        self.h = params['h']
+        self.rule = params['rule']
         self.dale = params['dale']
-
-        W = generate_connectivity_matrix(coordinates, h=self.h, dale=self.dale)
+        if self.rule == 'radius':
+            self.h = params['h']
+            W = generate_connectivity_matrix(coordinates, h=self.h, dale=self.dale)
+        elif self.rule == 'EDR':
+            self.gamma = params['gamma']
+            W = generate_connectivity_matrix_EDR(coordinates, gamma=self.gamma, dale=self.dale)
         self.W = torch.tensor(W).float().to(device)
 
         self.x_0 = torch.from_numpy(np.random.uniform(-1, 1, (N, 1))).float().to(device)
@@ -244,8 +260,14 @@ class AdjustedChaoticRNN:
         self.dale = params['dale']
         self.h = params['h']
         self.g_I = params['g_I']
+        self.rule = params['rule']
 
-        W = generate_connectivity_matrix(self.coordinates, h=self.h, dale=self.dale)
+        if self.rule == 'radius':
+            self.h = params['h']
+            W = generate_connectivity_matrix(coordinates, h=self.h, dale=self.dale)
+        elif self.rule == 'EDR':
+            self.gamma = params['gamma']
+            W = generate_connectivity_matrix_EDR(coordinates, gamma=self.gamma, dale=self.dale)
         self.W = torch.tensor(W).float().to(device)
         self.W[self.W < 0] *= self.g_I
 
@@ -283,8 +305,16 @@ class KuramotoSakaguchi:
         self.k = params['coupling']
         self.h = params['h']
         self.std = params['std']
+        self.rule = params['rule']
 
-        W = self.generate_random_network(coordinates, h=self.h)
+        if self.rule == 'radius':
+            self.h = params['h']
+            W = generate_connectivity_matrix(coordinates, h=self.h, dale=False)
+            W = (W != 0).astype('float')
+        elif self.rule == 'EDR':
+            self.gamma = params['gamma']
+            W = generate_connectivity_matrix_EDR(coordinates, gamma=self.gamma, dale=False)
+            W = (W != 0).astype('float')
         self.W = torch.tensor(W).float().to(device)
         self.distances = compute_distances(coordinates, coordinates)
         self.phase_lags = torch.tensor((W > 0).astype('float') * self.distances * self.alpha).float().to(device)
@@ -321,8 +351,10 @@ class BinaryNetwork:
         self.h = params['h']
         self.P_activation = params['P_activation']
         self.P_deactivation = params['P_deactivation']
+        self.gamma = params['gamma']
+        self.rule = params['rule']
 
-        W = self.generate_random_network(self.coordinates, h=self.h)
+        W = self.generate_random_network(self.coordinates, h=self.h, gamma=self.gamma, rule=self.rule)
         self.W = torch.tensor(W).float().to(self.device)
         self.X_0 = torch.from_numpy((np.random.uniform(0, 1, (self.N, 1)) > 0.9).astype('float')).float().to(device)
         self.X = [self.X_0]
@@ -341,9 +373,13 @@ class BinaryNetwork:
         return torch.concatenate(self.X, axis=1)
 
     @staticmethod
-    def generate_random_network(coordinates, h=0.1):
+    def generate_random_network(coordinates, h=0.1, gamma=25, rule='radius'):
         distances = compute_distances(coordinates, coordinates)
-        W = (distances <= h).astype('float')
+        if rule == 'radius':
+            W = (distances <= h).astype('float')
+        elif rule == 'EDR':
+            P = np.exp(-gamma * distances)
+            W = (np.random.uniform(0, 1, P.shape) < P).astype('float')
         W[np.diag_indices(W.shape[0])] = 0
         signs = ([-1] * int(W.shape[0] / 2)) + ([1] * int(W.shape[0] / 2))
         np.random.shuffle(signs)
@@ -369,6 +405,9 @@ class LIFNetwork:
         self.sigma_E, self.sigma_I = params['sigma_E'], params['sigma_I']
         self.delta_t = params['delta_t']
         self.h = params['h']
+        self.gamma = params['gamma']
+        self.rule = params['rule']
+        self.alpha = params['alpha']
 
         # Voltage matrices
         self.V = np.expand_dims([self.V_reset] * self.N, axis=1)
@@ -383,7 +422,7 @@ class LIFNetwork:
         self.g_IE = np.expand_dims([0] * int(self.N / 2), axis=1)
 
         # Synaptic connection matrices (network is initially unwired)
-        self.W = self.generate_connectivity_matrix(self.coordinates, self.h)
+        self.W = self.alpha * self.generate_connectivity_matrix(self.coordinates, h=self.h, rule=self.rule, gamma=self.gamma)
         signs = ([-1] * int(self.N / 2)) + ([1] * int(self.N / 2))
         np.random.shuffle(signs)
         self.excitatory, self.inhibitory = np.array(signs) > 0, np.array(signs) < 0
@@ -460,12 +499,14 @@ class LIFNetwork:
         return self.spikes
 
     @staticmethod
-    def generate_connectivity_matrix(coordinates, h=0.1):
+    def generate_connectivity_matrix(coordinates, h=0.1, gamma=25, rule='radius'):
         distances = compute_distances(coordinates, coordinates)
-        N = coordinates.shape[0]
-        W = (distances <= h).astype('float')
-        W[np.diag_indices(N)] = 0
-        N_edges = np.sum(W != 0)
+        if rule == 'radius':
+            W = (distances <= h).astype('float')
+        elif rule == 'EDR':
+            P = np.exp(-gamma * distances)
+            W = (np.random.uniform(0, 1, P.shape) < P).astype('float')
+        W[np.diag_indices(W.shape[0])] = 0
         return W
 
 
@@ -537,6 +578,13 @@ class RNN(nn.Module):
 # ----------------------------------------------------------------------------------------------------------------------
 
 
+def numpify(tensor):
+    if type(tensor) == np.ndarray:
+        return tensor
+    else:
+        return tensor.cpu().detach().numpy()
+
+
 def double(vector):
     return np.concatenate([vector, vector])
 
@@ -567,6 +615,50 @@ def generate_connectivity_matrix(coordinates, h=0.1, dale=False):
             ratio = E / I
             W[i][W[i] > 0] = W[i][W[i] > 0] / ratio
     return W
+
+
+def generate_connectivity_matrix_EDR(coordinates, gamma=10, dale=False):
+    distances = compute_distances(coordinates, coordinates)
+    N = coordinates.shape[0]
+    P = np.exp(-gamma * distances)
+    W = (np.random.uniform(0, 1, P.shape) < P).astype('float')
+    W[np.diag_indices(N)] = 0
+    N_edges = np.sum(W != 0)
+    rho = N_edges / (N * (N - 1))
+    W[W != 0] = np.random.normal(0, np.sqrt(1 / (N * rho)), N_edges)
+    if dale:
+        signs = ([-1] * int(N / 2)) + ([1] * int(N / 2))
+        np.random.shuffle(signs)
+        W = np.array(signs) * np.abs(W)
+    if dale:
+        for i in range(W.shape[0]): # Balancing E/I input strengths
+            E = np.sum(W[i][W[i] > 0])
+            I = np.abs(np.sum(W[i][W[i] < 0]))
+            ratio = E / I
+            W[i][W[i] > 0] = W[i][W[i] > 0] / ratio
+    return W
+
+
+def resample_weights(W):
+    N = W.shape[0]
+    N_edges = np.sum(W != 0)
+    rho = N_edges / (N * (N - 1))
+    W_resampled = np.copy(W)
+    W_resampled[W != 0] = np.random.normal(0, np.sqrt(1 / (N * rho)), N_edges)
+    return W_resampled
+
+
+def measure_connection_probabilities(W, D, d_min=0, d_max=1, n_bins=30):
+    distance_bins = np.linspace(d_min, d_max, n_bins + 1, endpoint=True)
+    probability = []
+    for i in range(len(distance_bins) - 1):
+        values = W[(D > distance_bins[i]) & (D <= distance_bins[i+1])]
+        if np.any(values):
+            probability.append(np.sum(values != 0) / len(values))
+        else:
+            probability.append(0)
+    d_values = distance_bins[:-1] + ((distance_bins[1] - distance_bins[0]) / 2)
+    return d_values, probability
 
 
 def progress_bar(iterable, verbose=True):
@@ -605,6 +697,14 @@ def compute_distances(X, Y):
     diff = X[:, np.newaxis, :] - Y[np.newaxis, :, :]
     distances = np.sqrt(np.sum(diff ** 2, axis=2))
     return distances
+
+
+def identify_cutoff_point_from_diagonal(diagonal, initial_guess=[30, -1, 0]):
+    x = np.arange(len(diagonal))
+    y = diagonal
+    params, _ = curve_fit(piecewise_linear, x, y, p0=initial_guess)
+    cutoff = int(np.round(params[0]))
+    return cutoff
     
     
 def compute_mode_similarity_matrix(modes1, modes2, return_mapping=False):
@@ -640,6 +740,10 @@ def spatial_smoothing(time_series, node_coordinates, sigma=0.1):
         return smoothed_time_series
     else:
         return time_series
+
+
+def exponential_function(x, gamma, a, b):
+    return a * np.exp(-gamma * x) + b
     
 
 def compute_pairwise_distances(points):
@@ -1146,3 +1250,27 @@ def weight_swapping_procedure(W, distances, h=0.1, n_iter=10000):
     np.random.shuffle(signs)
     W_swapped[W_swapped != 0] *= signs
     return W_swapped
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Alternative diffusion maps implementation
+# ----------------------------------------------------------------------------------------------------------------------
+
+
+def diffusion_maps(K, alpha=0.5):
+    K = np.asarray(K, dtype=float)
+    if K.ndim != 2 or K.shape[0] != K.shape[1]:
+        raise ValueError("K must be a square (N, N) affinity matrix.")
+    d = K.sum(axis=1)
+    d[d == 0] = 1e-15
+    if alpha != 0.0:
+        d_alpha = d**alpha
+        K_alpha = K / (d_alpha[:, None] * d_alpha[None, :])
+    else:
+        K_alpha = K
+    d_tilde = K_alpha.sum(axis=1)
+    d_tilde[d_tilde == 0] = 1e-15
+    P = K_alpha / d_tilde[:, None]
+    evals, evecs = np.linalg.eig(P)
+    order = np.flip(np.argsort(np.abs(evals)))
+    return np.abs(evals)[order], evecs[:, order].T
